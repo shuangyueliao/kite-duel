@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="description" content="Kite Duel — steer your kite, rule the upwind and slash your line across the rival's to snap it. A free original HTML5 kite-fighting duel.">
+<title>Kite Duel — Aerial Line-Cutting Duel</title>
+<script>
+// 平台 SDK 按域名条件加载（独立运行时完全不加载，游戏行为不变）
+(function () {
+  var host = location.hostname || "";
+  try {
+    if (host.indexOf("crazygames") !== -1) {
+      var s1 = document.createElement("script");
+      s1.src = "https://sdk.crazygames.com/crazygames-sdk-v3.js";
+      s1.onload = function () {
+        if (window.CrazyGames && window.CrazyGames.SDK) {
+          window.CrazyGames.SDK.init().then(function () {
+            try { window.CrazyGames.SDK.game.loadingStart(); } catch (e) {}
+            window.addEventListener("load", function () { try { window.CrazyGames.SDK.game.loadingStop(); } catch (e) {} });
+          }).catch(function () {});
+        }
+      };
+      document.head.appendChild(s1);
+      window.__portal = "crazygames";
+    } else if (host.indexOf("gamedistribution") !== -1 || host.indexOf("html5.gamedistribution.com") !== -1 || host.indexOf("gd.games") !== -1) {
+      var s2 = document.createElement("script");
+      s2.src = "https://sdk.gamedistribution.com/v2/main.min.js";
+      document.head.appendChild(s2);
+      window.__portal = "gamedistribution";
+    }
+  } catch (e) {}
+})();
+</script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; background:#150b22; font-family:-apple-system,"Helvetica Neue",Arial,sans-serif; user-select:none; -webkit-user-select:none; }
+  #wrap { height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  #stage { position:relative; }
+  canvas { display:block; border-radius:14px; touch-action:none; background:#2b1746; }
+  #overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(18,7,28,.8); z-index:5; border-radius:14px; }
+  #panel { background:#241536; border:1px solid #4a2c5e; border-radius:18px; padding:24px 28px; text-align:center; color:#ffeeda; max-width:88%; box-shadow:0 10px 40px rgba(0,0,0,.5); }
+  #panel h1 { font-size:34px; letter-spacing:3px; color:#ffd27a; margin-bottom:4px; }
+  #panel h2 { font-size:26px; letter-spacing:2px; margin-bottom:4px; }
+  #panel .sub { color:#d9a8ff; font-size:13px; margin-bottom:14px; line-height:1.55; }
+  .diffs { display:flex; gap:8px; justify-content:center; margin-bottom:14px; }
+  .diff { flex:1; background:#35204c; border:1px solid #5d3a77; color:#e8d5ff; border-radius:10px; padding:9px 6px; font-size:12px; font-weight:700; letter-spacing:1px; cursor:pointer; }
+  .diff.active { background:linear-gradient(135deg,#ff9d4d,#ff5a7e); color:#fff; border-color:#ffb27a; }
+  .rec { color:#9ad7ff; font-size:12px; margin-bottom:12px; letter-spacing:1px; }
+  .mainBtn { background:linear-gradient(135deg,#ffc86b,#ff7a4d); color:#3a1c08; border:none; border-radius:12px; padding:12px 30px; font-size:16px; font-weight:800; letter-spacing:1px; cursor:pointer; margin:4px; }
+  .mainBtn:active { transform:scale(.97); }
+  .ghostBtn { background:#35204c; color:#e8d5ff; border:1px solid #5d3a77; border-radius:12px; padding:12px 20px; font-size:14px; font-weight:700; cursor:pointer; margin:4px; }
+  #panel .hint { color:#a98cc4; font-size:11px; margin-top:12px; line-height:1.6; }
+  #mute { position:absolute; top:10px; right:10px; z-index:6; background:rgba(30,14,44,.72); color:#e9c8ff; border:1px solid #5d3a77; border-radius:9px; padding:5px 10px; font-size:11px; font-weight:700; cursor:pointer; }
+  #footer { color:#6b4f86; font-size:11px; padding:7px; letter-spacing:.5px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="game"></canvas>
+    <button id="mute">SOUND ON</button>
+    <div id="overlay"><div id="panel">
+      <div id="menuBox">
+        <h1>KITE DUEL</h1>
+        <p class="sub">Two kites. Two lines. One sky.<br>Rule the upwind — slash your line across the rival's and snap it.<br>The kite with the glowing halo holds the upwind edge.</p>
+        <div class="diffs">
+          <button class="diff" data-d="easy">EASY</button>
+          <button class="diff active" data-d="normal">NORMAL</button>
+          <button class="diff" data-d="hard">HARD</button>
+        </div>
+        <div class="rec" id="rec">RECORD 0 W · 0 L</div>
+        <button id="startBtn" class="mainBtn">TAKE THE SKY</button>
+        <p class="hint" id="ctrlHint">&#8593;/&#8595; reel line in/out · &#8592;/&#8594; drift in the wind window<br>Z yank (dash) · X slack (dodge sway) · M sound</p>
+      </div>
+      <div id="endBox" style="display:none">
+        <h2 id="endTitle">VICTORY</h2>
+        <p class="sub" id="endSub"></p>
+        <div class="rec" id="endRec"></div>
+        <button id="rematchBtn" class="mainBtn">REMATCH</button>
+        <button id="menuBtn" class="ghostBtn">MENU</button>
+      </div>
+    </div></div>
+  </div>
+  <div id="footer">Kite Duel — a free original kite-fighting game</div>
+</div>
+<script>
+"use strict";
+/* ============================================================
+   Kite Duel — 原创对抗玩法：双风筝空中斗线
+   核心循环：收放线 + 风窗横移 控制风筝相对位置；风筝本体被风
+   推着画 8 字；用自己斗线高速掠过对方线段 → 对方线耐久 -1，
+   满 5 创断线获胜。阵风每 6-10 秒转向，上风方割线阈值更低。
+   ============================================================ */
+
+/* ---------- 小工具 ---------- */
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function hyp(x, y) { return Math.sqrt(x * x + y * y); }
+function easeT(t) { return t * t * (3 - 2 * t); }
+var _rngS = 1;
+function setSeed(s) { _rngS = (s >>> 0) || 1; }
+function rng() { // mulberry32（可播种，测试可复现）
+  _rngS = _rngS + 0x6D2B79F5 | 0;
+  var t = _rngS;
+  t = Math.imul(t ^ t >>> 15, t | 1);
+  t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+  return ((t ^ t >>> 14) >>> 0) / 4294967296;
+}
+setSeed((Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0);
+
+/* ---------- 几何（纯函数，可单测） ---------- */
+// 线段相交：返回交点或 null（端点相触算相交；共线重叠返回重叠中点）
+function segInt(p1, p2, p3, p4) {
+  var d1x = p2.x - p1.x, d1y = p2.y - p1.y, d2x = p4.x - p3.x, d2y = p4.y - p3.y;
+  var den = d1x * d2y - d1y * d2x;
+  var ax = p3.x - p1.x, ay = p3.y - p1.y;
+  if (Math.abs(den) < 1e-9) {
+    var dd = d1x * d1x + d1y * d1y;
+    if (dd < 1e-12) return null;
+    if (Math.abs(ax * d1y - ay * d1x) > 1e-6 * dd + 1e-9) return null; // 平行不共线
+    var t3 = (ax * d1x + ay * d1y) / dd;
+    var bx = p4.x - p1.x, by = p4.y - p1.y;
+    var t4 = (bx * d1x + by * d1y) / dd;
+    var lo = Math.max(0, Math.min(t3, t4)), hi = Math.min(1, Math.max(t3, t4));
+    if (hi < lo) return null;
+    var m = (lo + hi) / 2;
+    return { x: p1.x + d1x * m, y: p1.y + d1y * m };
+  }
+  var t = (ax * d2y - ay * d2x) / den, u = (ax * d1y - ay * d1x) / den;
+  if (t < -1e-9 || t > 1 + 1e-9 || u < -1e-9 || u > 1 + 1e-9) return null;
+  return { x: p1.x + d1x * t, y: p1.y + d1y * t };
+}
+// 射线（单位方向）与圆的远交点距离；无交点返回 Infinity
+function rayCircleFar(o, d, c, r) {
+  var ox = o.x - c.x, oy = o.y - c.y;
+  var b = 2 * (ox * d.x + oy * d.y), cc = ox * ox + oy * oy - r * r;
+  var disc = b * b - 4 * cc;
+  if (disc < 0) return Infinity;
+  return (-b + Math.sqrt(disc)) / 2;
+}
+// 风筝固有 8 字运动（局部坐标：x 沿风向，y 横风）
+function fig8(ph, A, B) {
+  return { x: A * Math.sin(ph), y: B * Math.sin(2 * ph) / 2 };
+}
+// 点到线段最近距离
+function ptSegDist(p, a, b) {
+  var dx = b.x - a.x, dy = b.y - a.y;
+  var L2 = dx * dx + dy * dy;
+  var t = L2 > 1e-12 ? clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / L2, 0, 1) : 0;
+  var cx = a.x + dx * t, cy = a.y + dy * t;
+  return { d: hyp(p.x - cx, p.y - cy), x: cx, y: cy };
+}
+
+/* ---------- 配置 ---------- */
+var CFG = {
+  VW: 860, VH: 1200,            // 虚拟画布
+  ARC: { x: 430, y: 560 },      // 空域圆心
+  R0: 400,                      // 空域半径（每局缩小 10%）
+  ANCHOR: [{ x: 285, y: 1206 }, { x: 575, y: 1206 }], // 屏幕底边锚点
+  LMIN: 150, LMAX: 1000,
+  REEL: 175, YANK_REEL: 640, YANK_T: 0.5, SLACK_T: 1.15,
+  STEER: 1.15, WINDOW: 1.26,    // 风窗 ±72°
+  FIG_A: 46, FIG_B: 44, FIG_W: 2.3,
+  CUT_BASE: 300, CUT_WIND: 180, // 阈值 = 300 + 180*上风系数 → 上风 120 / 下风 480
+  COOL_BASE: 0.40, DEF_INV: 0.22,
+  DUR: 5, STAM: 3, STAM_REGEN: 5,
+  DRIFT: 26,
+  WIND_ARC: 1.31, GUST_MIN: 6, GUST_MAX: 10,
+  STORM_T: 55, STORM_SHRINK: 7, MAXFIGHT: 210
+};
+
+/* ---------- 音频（WebAudio 全合成） ---------- */
+var AC = null, master = null, windGain = null, windFilter = null, noiseB = null;
+var muted = false;
+try { muted = localStorage.getItem("kd_mute") === "1"; } catch (e) {}
+function initAudio() {
+  if (AC) { try { if (AC.state === "suspended") AC.resume(); } catch (e) {} return; }
+  try {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    master = AC.createGain(); master.gain.value = muted ? 0 : 1; master.connect(AC.destination);
+    // 风声：循环白噪声 → 低通 → 增益（随风力调制）
+    noiseB = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
+    var ch = noiseB.getChannelData(0);
+    for (var i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+    var src = AC.createBufferSource(); src.buffer = noiseB; src.loop = true;
+    windFilter = AC.createBiquadFilter(); windFilter.type = "lowpass"; windFilter.frequency.value = 420;
+    windGain = AC.createGain(); windGain.gain.value = 0;
+    src.connect(windFilter); windFilter.connect(windGain); windGain.connect(master);
+    src.start();
+  } catch (e) {}
+}
+function tone(f0, dur, type, vol, f1, delay) {
+  try {
+    if (!AC) return;
+    var t = AC.currentTime + (delay || 0);
+    var o = AC.createOscillator(), g = AC.createGain();
+    o.type = type || "sine"; o.frequency.setValueAtTime(f0, t);
+    if (f1) o.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
+    g.gain.setValueAtTime(vol || 0.1, t);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + dur + 0.03);
+  } catch (e) {}
+}
+function noiseHit(dur, vol, freq, delay) {
+  try {
+    if (!AC || !noiseB) return;
+    var t = AC.currentTime + (delay || 0);
+    var s = AC.createBufferSource(); s.buffer = noiseB;
+    var f = AC.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = freq; f.Q.value = 0.8;
+    var g = AC.createGain();
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    s.connect(f); f.connect(g); g.connect(master);
+    s.start(t); s.stop(t + dur + 0.02);
+  } catch (e) {}
+}
+function sfx(n) {
+  if (!AC || muted) return;
+  if (n === "click") tone(880, 0.05, "square", 0.05);
+  else if (n === "tick") tone(620, 0.07, "square", 0.08);
+  else if (n === "go") { tone(990, 0.16, "square", 0.1); tone(1320, 0.22, "triangle", 0.06, 0, 0.02); }
+  else if (n === "cut") { noiseHit(0.06, 0.22, 2600); tone(1500, 0.05, "square", 0.07); }
+  else if (n === "creak") tone(95 + rng() * 55, 0.12, "sawtooth", 0.04, 70);
+  else if (n === "yank") { tone(300, 0.12, "square", 0.06, 540); noiseHit(0.14, 0.07, 900); }
+  else if (n === "slack") { tone(520, 0.16, "sine", 0.05, 260); }
+  else if (n === "gust") noiseHit(0.5, 0.1, 480);
+  else if (n === "snap") { noiseHit(0.2, 0.34, 1800); tone(420, 0.36, "triangle", 0.2, 55); tone(185, 0.42, "sawtooth", 0.1, 40); }
+  else if (n === "win") { // 胜利短调（亮色簧片感）
+    var seq = [[660, 0], [784, 0.13], [880, 0.26], [1175, 0.44], [880, 0.62], [1175, 0.76], [1319, 0.94]];
+    for (var i = 0; i < seq.length; i++) { tone(seq[i][0], 0.16, "sawtooth", 0.11, seq[i][0] * 1.03, seq[i][1]); tone(seq[i][0] / 2, 0.14, "triangle", 0.05, 0, seq[i][1]); }
+  }
+  else if (n === "lose") { tone(330, 0.3, "sawtooth", 0.1, 190); tone(165, 0.5, "sawtooth", 0.1, 92, 0.18); }
+}
+function updateWindAudio() {
+  try {
+    if (!windGain) return;
+    var g = muted ? 0 : (state === "FIGHT" || state === "SLOWMO" ? 0.012 + 0.05 * wind.str : 0.01);
+    windGain.gain.value += (g - windGain.gain.value) * 0.06;
+    windFilter.frequency.value = 260 + 340 * wind.str;
+  } catch (e) {}
+}
+
+/* ---------- 画布 ---------- */
+var canvas = document.getElementById("game");
+var ctx = canvas.getContext("2d");
+var DPR = Math.min(window.devicePixelRatio || 1, 2);
+canvas.width = CFG.VW * DPR; canvas.height = CFG.VH * DPR;
+function fit() {
+  var vw = window.innerWidth, vh = window.innerHeight;
+  var s = Math.min(vw / CFG.VW, (vh - 30) / CFG.VH);
+  s = Math.max(0.2, s);
+  canvas.style.width = Math.round(CFG.VW * s) + "px";
+  canvas.style.height = Math.round(CFG.VH * s) + "px";
+}
+window.addEventListener("resize", fit);
+window.addEventListener("orientationchange", fit);
+fit();
+
+/* ---------- 全局状态 ---------- */
+var state = "MENU";           // MENU | INTRO | FIGHT | SLOWMO | ROUNDEND | MATCHEND
+var match = null, fighters = null;
+var wind = { az: 0, fromAz: 0, targetAz: 0, str: 1, targetStr: 1, fromStr: 1, t: 6, trans: 0 };
+var arena = { R: CFG.R0 };
+var matchT = 0, fightT = 0, introT = 0, roundEndT = 0, slowT = 0, timeScale = 1, flashT = 0;
+var snapWinner = 0, storm = false, touchMode = false;
+var particles = [], debris = [], floats = [], clouds = [], stars = [];
+var stats = { up: [0, 0], down: [0, 0], rounds: 0, timeSum: 0, strikes: [0, 0], yanks: [0, 0], slacks: [0, 0] };
+var winsRec = 0, lossRec = 0, streakRec = 0;
+try {
+  winsRec = parseInt(localStorage.getItem("kd_w") || "0", 10) || 0;
+  lossRec = parseInt(localStorage.getItem("kd_l") || "0", 10) || 0;
+  streakRec = parseInt(localStorage.getItem("kd_s") || "0", 10) || 0;
+} catch (e) {}
+
+// 云与星空（视觉）
+for (var ci = 0; ci < 7; ci++) {
+  var puffs = [];
+  for (var pi = 0; pi < 4; pi++) puffs.push({ dx: (rng() - 0.5) * 130, dy: (rng() - 0.5) * 36, r: 26 + rng() * 34 });
+  clouds.push({ x: rng() * CFG.VW, y: 80 + rng() * 700, s: 0.7 + rng() * 0.9, puffs: puffs, a: 0.1 + rng() * 0.12 });
+}
+for (var si = 0; si < 46; si++) stars.push({ x: rng() * CFG.VW, y: rng() * 520, r: 0.6 + rng() * 1.1, p: rng() * 6.28 });
+
+/* ---------- 风场 ---------- */
+function windVec() { return { x: Math.sin(wind.az), y: -Math.cos(wind.az) }; }
+function updateWind(dt) {
+  wind.t -= dt;
+  if (wind.t <= 0) {
+    wind.t = CFG.GUST_MIN + rng() * (CFG.GUST_MAX - CFG.GUST_MIN);
+    wind.fromAz = wind.az; wind.targetAz = (rng() * 2 - 1) * CFG.WIND_ARC;
+    wind.fromStr = wind.str; wind.targetStr = 0.7 + rng() * 0.6;
+    wind.trans = 1.6;
+    if (state === "FIGHT") sfx("gust");
+  }
+  if (wind.trans > 0) {
+    wind.trans -= dt;
+    var k = easeT(clamp(1 - Math.max(0, wind.trans) / 1.6, 0, 1));
+    wind.az = lerp(wind.fromAz, wind.targetAz, k);
+    wind.str = lerp(wind.fromStr, wind.targetStr, k);
+  }
+  if (storm) wind.str = Math.min(1.5, wind.str + 0.02 * dt);
+}
+
+/* ---------- 风筝运动学 ---------- */
+// 纯函数：由线长/风窗角/风/漂移/相位 计算风筝世界位置（单测对照用）
+function kiteWorldPos(anchor, L, theta, az, driftx, drifty, phase, amp, cx, cy, Reff) {
+  var wx = Math.sin(az), wy = -Math.cos(az);
+  var ca = Math.cos(theta), sa = Math.sin(theta);
+  var dx = wx * ca - wy * sa, dy = wx * sa + wy * ca;   // 风窗内的线方向
+  var tHit = rayCircleFar(anchor, { x: dx, y: dy }, { x: cx, y: cy }, Reff);
+  var Lmax = Math.min(CFG.LMAX, isFinite(tHit) ? tHit - 8 : CFG.LMAX);
+  var Lc = clamp(L, CFG.LMIN, Math.max(CFG.LMIN, Lmax));
+  var hx = anchor.x + dx * Lc, hy = anchor.y + dy * Lc;
+  var rx = hx - cx, ry = hy - cy, rd = hyp(rx, ry);
+  if (rd > Reff) { hx = cx + rx / rd * Reff; hy = cy + ry / rd * Reff; }
+  hx += driftx; hy += drifty;
+  var rx2 = hx - cx, ry2 = hy - cy, rd2 = hyp(rx2, ry2);
+  if (rd2 > Reff + 30) { hx = cx + rx2 / rd2 * (Reff + 30); hy = cy + ry2 / rd2 * (Reff + 30); }
+  var f = fig8(phase, CFG.FIG_A * amp, CFG.FIG_B * amp);
+  var ax = -wy, ay = wx; // 横风单位向量
+  return { x: hx + wx * f.x + ax * f.y, y: hy + wy * f.x + ay * f.y, hx: hx, hy: hy, Lc: Lc };
+}
+function mkFighter(idx, ctrl, mode, bias) {
+  var a = CFG.ANCHOR[idx];
+  var f = {
+    idx: idx, ctrl: ctrl, aiMode: mode || null, aiBias: !!bias,
+    anchor: { x: a.x, y: a.y },
+    L: 430, theta: 0, phase: rng() * 6.28, amp: 1,
+    pos: { x: a.x, y: a.y - 430 }, prev: { x: a.x, y: a.y - 430 },
+    vel: { x: 0, y: 0 },
+    drift: { x: 0, y: 0 },
+    integrity: CFG.DUR, stamina: CFG.STAM, stamT: 0,
+    yankT: 0, slackT: 0, alive: true, spin: 0,
+    lastCut: -99, lastHit: -99,
+    ln: [{ a: { x: a.x, y: a.y }, b: { x: a.x, y: a.y - 430 } }],
+    lnPrev: [{ a: { x: a.x, y: a.y }, b: { x: a.x, y: a.y - 430 } }],
+    lineVel: { x: 0, y: 0 },
+    marks: [], creakT: 0, planT: 0, plan: null,
+    aiPhase: "seize", aiStage: 0, stS: 0.55, stT: 0, rallyT: 0, orb: rng() * 6.28, sideSign: rng() < 0.5 ? -1 : 1,
+    tail: []
+  };
+  for (var i = 0; i < 12; i++) f.tail.push({ x: f.pos.x, y: f.pos.y + i * 9 });
+  return f;
+}
+function computeLine(f) {
+  var segs;
+  if (f.slackT > 0) { // 松线：线垂坠成弯，遮挡扫掠路径（物理躲线）
+    var mx = (f.anchor.x + f.pos.x) / 2, my = (f.anchor.y + f.pos.y) / 2;
+    var len = hyp(f.pos.x - f.anchor.x, f.pos.y - f.anchor.y);
+    var wv = windVec();
+    var wob = Math.sin(f.phase * 2.7) * 34;
+    var sag = Math.min(190, len * 0.32);
+    mx += wv.x * sag * 0.65 - wv.y * wob * 0.4;
+    my += wv.y * sag * 0.65 + wv.x * wob * 0.4 + 26;
+    segs = [{ a: { x: f.anchor.x, y: f.anchor.y }, b: { x: mx, y: my } }, { a: { x: mx, y: my }, b: { x: f.pos.x, y: f.pos.y } }];
+  } else {
+    segs = [{ a: { x: f.anchor.x, y: f.anchor.y }, b: { x: f.pos.x, y: f.pos.y } }];
+  }
+  return segs;
+}
+function segsMid(segs) {
+  var x = 0, y = 0;
+  for (var i = 0; i < segs.length; i++) { x += (segs[i].a.x + segs[i].b.x) / 2; y += (segs[i].a.y + segs[i].b.y) / 2; }
+  return { x: x / segs.length, y: y / segs.length };
+}
+function stepFighter(f, inp, dt) {
+  if (!f.alive) { // 断线风筝随风飘走
+    var wv0 = windVec();
+    f.pos.x += wv0.x * 170 * dt + Math.sin(matchT * 3 + f.idx) * 24 * dt;
+    f.pos.y += wv0.y * 170 * dt - 46 * dt;
+    f.spin += dt * 5;
+    for (var ti = 0; ti < f.tail.length; ti++) { f.tail[ti].x += wv0.x * 150 * dt; f.tail[ti].y += (wv0.y * 150 - 20) * dt; }
+    return;
+  }
+  // 技能触发（边沿）
+  if (inp.yank && f.stamina >= 1 && f.yankT <= 0) { f.stamina--; f.yankT = CFG.YANK_T; stats.yanks[f.idx]++; if (f.idx === 0) sfx("yank"); }
+  if (inp.slack && f.stamina >= 1 && f.slackT <= 0) { f.stamina--; f.slackT = CFG.SLACK_T; stats.slacks[f.idx]++; if (f.idx === 0) sfx("slack"); }
+  if (f.stamina < CFG.STAM) {
+    f.stamT += dt;
+    if (f.stamT >= CFG.STAM_REGEN) { f.stamina++; f.stamT = 0; }
+  } else f.stamT = 0;
+  // 转向（风窗内横移）
+  var steerMul = f.yankT > 0 ? 1.6 : 1;
+  f.theta += clamp(inp.lat, -1, 1) * CFG.STEER * steerMul * dt;
+  f.theta = clamp(f.theta, -CFG.WINDOW, CFG.WINDOW);
+  // 收放线：收线逆风（慢），放线顺风（快）
+  var wv = windVec();
+  var reel = clamp(inp.reel, -1, 1);
+  var reelMul = reel > 0 ? (1 - 0.3 * wind.str) : (1 + 0.4 * wind.str);
+  f.L += -reel * CFG.REEL * reelMul * dt;
+  if (f.yankT > 0) { f.L -= CFG.YANK_REEL * dt; f.yankT -= dt; }
+  if (f.slackT > 0) { f.L += 130 * dt; f.slackT -= dt; }
+  f.L = clamp(f.L, CFG.LMIN, CFG.LMAX);
+  // 风推漂移（顺风鼓出；松线时强漂移=大幅摆动）
+  var drMul = f.slackT > 0 ? 3.4 : 1, damp = f.slackT > 0 ? 0.45 : 1.1;
+  f.drift.x += wv.x * CFG.DRIFT * wind.str * drMul * dt;
+  f.drift.y += wv.y * CFG.DRIFT * wind.str * drMul * dt;
+  var k = Math.exp(-damp * dt);
+  f.drift.x *= k; f.drift.y *= k;
+  // 8 字相位
+  var ampT = f.slackT > 0 ? 1.8 : 1;
+  f.amp += (ampT - f.amp) * Math.min(1, dt * 4);
+  f.phase += dt * CFG.FIG_W * (f.slackT > 0 ? 0.55 : 1) * (0.8 + 0.4 * wind.str);
+  // 位置积分
+  f.prev.x = f.pos.x; f.prev.y = f.pos.y;
+  var res = kiteWorldPos(f.anchor, f.L, f.theta, wind.az, f.drift.x, f.drift.y, f.phase, f.amp, CFG.ARC.x, CFG.ARC.y, arena.R - 36);
+  f.pos.x = res.x; f.pos.y = res.y; f.hx = res.hx; f.hy = res.hy;
+  if (!isFinite(f.pos.x) || !isFinite(f.pos.y)) { f.pos.x = CFG.ARC.x; f.pos.y = CFG.ARC.y; }
+  f.vel.x = (f.pos.x - f.prev.x) / dt; f.vel.y = (f.pos.y - f.prev.y) / dt;
+  // 斗线（两点链；松线弯折）
+  f.lnPrev = f.ln;
+  f.ln = computeLine(f);
+  var mc = segsMid(f.ln), mp = segsMid(f.lnPrev);
+  f.lineVel.x = (mc.x - mp.x) / dt; f.lineVel.y = (mc.y - mp.y) / dt;
+  // 线绷紧吱声（己方）
+  if (f.idx === 0) {
+    f.creakT -= dt;
+    var tHit = rayCircleFar(f.anchor, { x: Math.sin(wind.az) * Math.cos(f.theta) + Math.cos(wind.az) * Math.sin(f.theta), y: -Math.cos(wind.az) * Math.cos(f.theta) + Math.sin(wind.az) * Math.sin(f.theta) }, CFG.ARC, arena.R - 36);
+    if (f.creakT <= 0 && (f.L > Math.min(CFG.LMAX, tHit - 30) || f.integrity <= 2)) { sfx("creak"); f.creakT = 1.2 + rng() * 0.8; }
+  }
+  // 尾穗（跟随链）
+  var tailK = Math.min(1, dt * 13);
+  f.tail[0].x += (f.pos.x - f.tail[0].x) * Math.min(1, dt * 22);
+  f.tail[0].y += (f.pos.y + 20 - f.tail[0].y) * Math.min(1, dt * 22);
+  for (var i = 1; i < f.tail.length; i++) {
+    var p0 = f.tail[i - 1], p1 = f.tail[i];
+    var ddx = p1.x - p0.x, ddy = p1.y - p0.y, dd = hyp(ddx, ddy) || 1;
+    var seg = 9;
+    p1.x += (p0.x + ddx / dd * seg - p1.x) * tailK + wv.x * wind.str * 26 * dt;
+    p1.y += (p0.y + ddy / dd * seg - p1.y) * tailK + 34 * dt + wv.y * wind.str * 26 * dt;
+  }
+  // 清理过期 marks
+  if (f.marks.length > 5) f.marks.splice(0, f.marks.length - 5);
+}
+
+/* ---------- AI ---------- */
+function foeStrikePoint(foe, me, s) {
+  var fa = foe.ln[0].a, fb = foe.ln[foe.ln.length - 1].b;
+  var px = fa.x + (fb.x - fa.x) * s, py = fa.y + (fb.y - fa.y) * s;
+  var lx = fb.x - fa.x, ly = fb.y - fa.y, ll = hyp(lx, ly) || 1;
+  var nx = -ly / ll, ny = lx / ll;
+  var side = ((me.pos.x - px) * nx + (me.pos.y - py) * ny) >= 0 ? 1 : -1;
+  return {
+    sx: px + nx * side * 110, sy: py + ny * side * 110,
+    cx: px - nx * side * 230, cy: py - ny * side * 230,
+    px: px, py: py, nx: nx, ny: ny, side: side,
+    crossed: ((me.pos.x - px) * nx + (me.pos.y - py) * ny) * side < -30
+  };
+}
+function predictThreat(foe, me) {
+  var ex = foe.pos.x + foe.vel.x * 0.5, ey = foe.pos.y + foe.vel.y * 0.5;
+  var m = 1e9;
+  for (var i = 0; i < me.ln.length; i++) {
+    var s = me.ln[i];
+    m = Math.min(m, ptSegDist(foe.pos, s.a, s.b).d, ptSegDist({ x: ex, y: ey }, s.a, s.b).d);
+  }
+  var sp = hyp(foe.vel.x, foe.vel.y);
+  return { danger: m < 64 ? (1 - m / 64) * clamp(sp / 430, 0, 1) : 0, x: foe.pos.x, y: foe.pos.y };
+}
+function followTarget(f, T) {
+  // 极坐标伺服：直角系控制器对铰接在锚点上的风筝会失稳（边缘钳制处打转），
+  // 这里直接伺服"目标极角"（相对风向）与"目标线长"。
+  var tx = T.tx !== undefined ? T.tx : T.x;
+  var ty = T.ty !== undefined ? T.ty : T.y;
+  var wv = windVec();
+  var vx = tx - f.anchor.x, vy = ty - f.anchor.y;
+  var vd = hyp(vx, vy) || 1;
+  var cosA = (vx * wv.x + vy * wv.y) / vd;
+  var sinA = (vx * -wv.y + vy * wv.x) / vd; // perp(w)=(-w.y,w.x) 是 +theta 方向
+  var tAng = Math.atan2(sinA, cosA);
+  var err = tAng - f.theta;
+  while (err > Math.PI) err -= 2 * Math.PI;
+  while (err < -Math.PI) err += 2 * Math.PI;
+  var lat = clamp(err * 2.2, -1, 1);
+  var rerr = vd - hyp(f.pos.x - f.anchor.x, f.pos.y - f.anchor.y);
+  var reel = clamp(-rerr / 130, -1, 1); // rerr>0 = 目标更远 → 放线（reel 负）
+  return { lat: lat, reel: reel, yank: false, slack: false };
+}
+function aiThink(f, foe, dt) {
+  f.planT -= dt;
+  if (f.planT <= 0) {
+    f.planT = f.aiMode === "hard" ? 0.11 : f.aiMode === "normal" ? 0.15 : 0.22;
+    f.plan = aiPlan(f, foe);
+  }
+  var p = f.plan || { tx: foe.pos.x, ty: foe.pos.y, yank: false, slack: false };
+  var inp = followTarget(f, p);
+  if (p.yank) { inp.yank = true; p.yank = false; }
+  if (p.slack) { inp.slack = true; p.slack = false; }
+  return inp;
+}
+function aiPlan(f, foe) {
+  var wv = windVec();
+  var up = (f.pos.x - foe.pos.x) * wv.x + (f.pos.y - foe.pos.y) * wv.y; // <0 = 我在上风
+  var p = { tx: foe.pos.x, ty: foe.pos.y, yank: false, slack: false };
+  // 出界回拉（仅本计划生效，不锁状态）
+  var dc = hyp(f.pos.x - CFG.ARC.x, f.pos.y - CFG.ARC.y);
+  if (dc > arena.R - 90) {
+    var kk = (arena.R - 150) / dc;
+    p.tx = CFG.ARC.x + (f.pos.x - CFG.ARC.x) * kk;
+    p.ty = CFG.ARC.y + (f.pos.y - CFG.ARC.y) * kk;
+    return p;
+  }
+  if (f.aiMode === "easy") { // 直冲
+    p.tx = foe.pos.x + foe.vel.x * 0.25 + (rng() - 0.5) * 60;
+    p.ty = foe.pos.y + foe.vel.y * 0.25 + (rng() - 0.5) * 60;
+    if (rng() < 0.02 && f.stamina >= 1) p.yank = true;
+    return p;
+  }
+  // 躲避：预测敌方割线路径
+  var th = predictThreat(foe, f);
+  if (th.danger > 0.62 && (f.aiMode === "hard" || rng() < 0.6)) {
+    var ex = f.pos.x - th.x, ey = f.pos.y - th.y, el = hyp(ex, ey) || 1;
+    p.tx = f.pos.x + ex / el * 230; p.ty = f.pos.y + ey / el * 230;
+    if (f.aiMode === "hard" && th.danger > 0.72 && f.slackT <= 0 && f.stamina >= 1) p.slack = true;
+    return p;
+  }
+  if (f.aiMode === "normal") { // 绕圈找角度 + 周期性冲刺
+    f.orb += 0.5;
+    if (f.aiPhase !== "strike" && rng() < 0.24) { f.aiPhase = "strike"; f.aiStage = 0; f.stS = 0.35 + rng() * 0.35; f.stT = 2.2; }
+    if (f.aiPhase === "strike") {
+      var t = foeStrikePoint(foe, f, f.stS);
+      f.stT -= 0.15;
+      if (f.aiStage === 0) {
+        p.tx = t.sx; p.ty = t.sy;
+        if (hyp(f.pos.x - t.sx, f.pos.y - t.sy) < 150 || t.crossed) { f.aiStage = 1; if (rng() < 0.5 && f.stamina >= 1 && f.yankT <= 0) p.yank = true; }
+      } else {
+        p.tx = t.cx; p.ty = t.cy;
+        if (t.crossed || f.stT <= 0) { f.aiPhase = "orbit"; f.aiStage = 0; }
+      }
+      return p;
+    }
+    p.tx = foe.pos.x + Math.cos(f.orb) * 200 - wv.x * 60;
+    p.ty = foe.pos.y + Math.sin(f.orb) * 200 - wv.y * 60;
+    return p;
+  }
+  // hard：风位抢占 + 打击 + 躲避（bias=更激进的上风机会主义者）
+  // 核心判据 upness：对方线上的选点在我的下风多远（>0 = 我在线的上风侧）
+  if (rng() < 0.06) f.stS = 0.45 + rng() * 0.3;
+  var tS = foeStrikePoint(foe, f, f.stS);
+  var upness = (tS.px - f.pos.x) * wv.x + (tS.py - f.pos.y) * wv.y;
+  if (f.aiPhase === "strike") {
+    f.stT -= 0.11;
+    if (f.aiStage === 0) {
+      // 上风侧进场：打击点逆风 110
+      p.tx = tS.px - wv.x * 110; p.ty = tS.py - wv.y * 110;
+      if (hyp(f.pos.x - p.tx, f.pos.y - p.ty) < 140) {
+        f.aiStage = 1;
+        if (f.stamina >= 1 && f.yankT <= 0 && rng() < (f.aiBias ? 1 : 0.85)) p.yank = true;
+      }
+    } else {
+      // 顺风穿越：借风势把线带过对方线
+      p.tx = tS.px + wv.x * 240; p.ty = tS.py + wv.y * 240;
+      if (tS.crossed || f.stT <= 0 || upness < -40) { f.aiPhase = "rally"; f.rallyT = f.aiBias ? 0.5 + rng() * 0.4 : 0.9 + rng() * 0.7; }
+    }
+    return p;
+  }
+  if (f.aiPhase === "rally") {
+    f.rallyT -= 0.11;
+    var rx = f.pos.x - wv.x * 80 + (f.pos.x - foe.pos.x) * 0.3;
+    var ry = f.pos.y - wv.y * 80 + (f.pos.y - foe.pos.y) * 0.3;
+    var rdx = rx - CFG.ARC.x, rdy = ry - CFG.ARC.y, rd2 = hyp(rdx, rdy);
+    if (rd2 > arena.R - 130) { rx = CFG.ARC.x + rdx / rd2 * (arena.R - 130); ry = CFG.ARC.y + rdy / rd2 * (arena.R - 130); }
+    p.tx = rx; p.ty = ry;
+    if (f.rallyT <= 0) f.aiPhase = "seize";
+    return p;
+  }
+  if (upness > 40 && hyp(f.pos.x - tS.px, f.pos.y - tS.py) < 560) { // 已在线的上风侧 → 打！
+    f.aiPhase = "strike"; f.aiStage = 0;
+    f.stT = f.aiBias ? 3.2 : 2.6;
+    stats.strikes[f.idx]++;
+    p.tx = tS.px - wv.x * 110; p.ty = tS.py - wv.y * 110;
+    return p;
+  }
+  // 抢风位：移动到对方线选点的上风侧（下风方必须冒险穿线来偷风位）
+  var stX = tS.px - wv.x * 170, stY = tS.py - wv.y * 170;
+  var sdx = stX - CFG.ARC.x, sdy = stY - CFG.ARC.y, sd = hyp(sdx, sdy);
+  var maxR = arena.R - 120;
+  if (sd > maxR) { stX = CFG.ARC.x + sdx / sd * maxR; stY = CFG.ARC.y + sdy / sd * maxR; }
+  p.tx = stX; p.ty = stY;
+  return p;
+}
+
+/* ---------- 割线判定 ---------- */
+// 纯函数：攻击点扫掠段 (p0→p1) 擦过目标线（前后两帧位置），相对速度需 ≥ 阈值
+function sweepCut(p0, p1, qa0, qb0, qa1, qb1, rel, th) {
+  if (rel < th) return null;
+  return segInt(p0, p1, qa1, qb1) || segInt(p0, p1, qa0, qb0);
+}
+// 纯函数：线-线扫掠（攻击线前后帧 vs 防守线前后帧 + 端点轨迹）
+function sweepLines(A0, A1, B0, B1) {
+  return segInt(A1.a, A1.b, B1.a, B1.b) || segInt(A0.a, A0.b, B1.a, B1.b) ||
+         segInt(A1.a, A1.b, B0.a, B0.b) || segInt({ x: A0.a.x, y: A0.a.y }, { x: A1.a.x, y: A1.a.y }, B1.a, B1.b) ||
+         segInt({ x: A0.b.x, y: A0.b.y }, { x: A1.b.x, y: A1.b.y }, B1.a, B1.b);
+}
+// 上风系数（宏观风位，用于光环/提示）：dot(攻-守, 风) <0 表示攻方在上风
+function upwindN(att, def) {
+  var wv = windVec();
+  var d = (att.pos.x - def.pos.x) * wv.x + (att.pos.y - def.pos.y) * wv.y;
+  return clamp(d / 240, -1, 1);
+}
+// 割切方向系数：掠过方向沿风（顺风劈过对方线）→ 阈值低；
+// 逆风劈 → 阈值高。想顺风割，就必须先站到对方线的上风侧 —— 这就是风位优势。
+function cutDotN(att, def) {
+  var wv = windVec();
+  var rvx = att.vel.x - def.lineVel.x, rvy = att.vel.y - def.lineVel.y;
+  var rl = hyp(rvx, rvy) || 1;
+  return clamp((rvx * wv.x + rvy * wv.y) / rl, -1, 1);
+}
+function cutThreshold(att, def) {
+  var th = CFG.CUT_BASE - CFG.CUT_WIND * cutDotN(att, def);
+  if (def.slackT > 0) th *= 1.4; // 松线漂更难被刮到
+  return th;
+}
+function cooldownFor(att, def) { return CFG.COOL_BASE - 0.16 * cutDotN(att, def); }
+function cutGate(att, def) {
+  return (matchT - att.lastCut >= cooldownFor(att, def)) && (matchT - def.lastHit >= CFG.DEF_INV);
+}
+function relSpeed(att, def) {
+  return hyp(att.vel.x - def.lineVel.x, att.vel.y - def.lineVel.y);
+}
+function applyCut(def, att, pt) {
+  def.integrity--;
+  def.lastHit = matchT; att.lastCut = matchT;
+  def.marks.push(matchT);
+  var n = cutDotN(att, def);
+  if (n > 0.15) stats.up[att.idx]++; else stats.down[att.idx]++; // up=顺风 assisted / down=逆风 unassisted
+  for (var i = 0; i < 14; i++) {
+    var a = rng() * 6.283, sp = 60 + rng() * 220;
+    particles.push({ x: pt.x, y: pt.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.3 + rng() * 0.25, color: i % 3 ? "#ffe9a3" : "#fff", size: 1.5 + rng() * 2.5 });
+  }
+  floats.push({ x: pt.x, y: pt.y, text: "-" + (def.idx === 0 ? "YOU" : "FOE"), life: 0.8, color: def.idx === 0 ? "#ff8f7a" : "#9ef7ff" });
+  if (def.idx === 0) sfx("cut");
+  if (def.integrity <= 0) beginSnap(def);
+}
+function tryCuts() {
+  for (var a = 0; a < 2; a++) {
+    var d = 1 - a, A = fighters[a], D = fighters[d];
+    if (!A.alive || !D.alive) continue;
+    if (!cutGate(A, D)) continue;
+    var th = cutThreshold(A, D);
+    var rel = relSpeed(A, D);
+    var hit = null;
+    for (var i = 0; i < D.ln.length && !hit; i++) {
+      var seg = D.ln[i], pseg = D.lnPrev[Math.min(i, D.lnPrev.length - 1)];
+      hit = sweepCut(A.prev, A.pos, pseg.a, pseg.b, seg.a, seg.b, rel, th);
+    }
+    if (!hit) { // 线-线绞切（攻击线也在动）
+      var lrel = hyp(A.lineVel.x - D.lineVel.x, A.lineVel.y - D.lineVel.y);
+      if (lrel >= th * 1.1) {
+        for (var ai = 0; ai < A.ln.length && !hit; ai++) {
+          for (var di = 0; di < D.ln.length && !hit; di++) {
+            var As = A.ln[ai], Asp = A.lnPrev[Math.min(ai, A.lnPrev.length - 1)];
+            var Ds = D.ln[di], Dsp = D.lnPrev[Math.min(di, D.lnPrev.length - 1)];
+            if (sweepLines(Asp, As, Dsp, Ds)) hit = segsMid(As);
+          }
+        }
+      }
+    }
+    if (hit) applyCut(D, A, hit);
+  }
+}
+
+/* ---------- 比赛流程 ---------- */
+function cgEvent(name) {
+  try {
+    if (window.__portal === "crazygames" && window.CrazyGames && window.CrazyGames.SDK) {
+      window.CrazyGames.SDK.game[name]();
+    }
+  } catch (e) {}
+}
+function startRound(n) {
+  match.round = n;
+  arena.R = CFG.R0 * Math.pow(0.9, n - 1); // 每局空域缩小 10%
+  fighters = [
+    mkFighter(0, match.test ? "ai" : "player", match.test ? match.diffA : null, match.test ? match.biasA : false),
+    mkFighter(1, "ai", match.diffB, match.biasB)
+  ];
+  wind.az = wind.fromAz = wind.targetAz = (rng() * 2 - 1) * 0.9;
+  wind.str = wind.fromStr = wind.targetStr = 0.9 + rng() * 0.3;
+  wind.t = 4 + rng() * 4; wind.trans = 0;
+  fightT = 0; storm = false; snapWinner = 0;
+  particles.length = 0; debris.length = 0; floats.length = 0;
+  // 开局各自向外侧张开（避免斗线开局互压的运气局）
+  fighters[0].theta = -0.72; fighters[1].theta = 0.72;
+  fighters[0].L = 410; fighters[1].L = 410;
+  stepFighter(fighters[0], { lat: 0, reel: 0 }, 0.016);
+  stepFighter(fighters[1], { lat: 0, reel: 0 }, 0.016);
+  fighters[0].prev.x = fighters[0].pos.x; fighters[0].prev.y = fighters[0].pos.y;
+  fighters[1].prev.x = fighters[1].pos.x; fighters[1].prev.y = fighters[1].pos.y;
+  state = "INTRO"; introT = 3.3; timeScale = 1;
+}
+function startMatch(diff) {
+  match = { wins: [0, 0], round: 1, targetWins: 2, diffA: null, diffB: diff, biasA: false, biasB: false, test: false, lastWinner: null };
+  startRound(1);
+  hideOverlay();
+}
+function startTestMatch(opts) {
+  opts = opts || {};
+  setSeed(opts.seed || 1);
+  match = {
+    wins: [0, 0], round: 1, targetWins: opts.rounds || 1,
+    diffA: opts.a || "hard", diffB: opts.b || "hard",
+    biasA: !!opts.biasA, biasB: !!opts.biasB, test: true, lastWinner: null,
+    pinWind: opts.pinWind
+  };
+  stats = { up: [0, 0], down: [0, 0], rounds: 0, timeSum: 0, strikes: [0, 0], yanks: [0, 0], slacks: [0, 0] };
+  matchT = 0;
+  startRound(1);
+  if (opts.pinWind !== undefined) { // 测试：锁定风向（量化风位优势）
+    wind.az = wind.fromAz = wind.targetAz = opts.pinWind;
+    wind.t = 1e9; wind.trans = 0;
+  }
+  state = "FIGHT";
+}
+function beginSnap(loser) {
+  loser.alive = false;
+  // 断线碎片随风飞走
+  var wv = windVec();
+  for (var i = 0; i < loser.ln.length; i++) {
+    var s = loser.ln[i];
+    for (var k = 0; k < 4; k++) {
+      var t0 = k / 4, t1 = (k + 1) / 4;
+      debris.push({
+        x: lerp(s.a.x, s.b.x, (t0 + t1) / 2), y: lerp(s.a.y, s.b.y, (t0 + t1) / 2),
+        len: hyp(s.b.x - s.a.x, s.b.y - s.a.y) / 4,
+        ang: Math.atan2(s.b.y - s.a.y, s.b.x - s.a.x),
+        vx: wv.x * 240 + (rng() - 0.5) * 120, vy: wv.y * 240 - 60 - rng() * 90,
+        va: (rng() - 0.5) * 9, life: 1.6,
+        color: loser.idx === 0 ? "#8ef4ff" : "#ffb36b"
+      });
+    }
+  }
+  snapWinner = 1 - loser.idx;
+  state = "SLOWMO"; slowT = 1.2; timeScale = 0.22; flashT = 0.32;
+  sfx("snap");
+}
+function endRound(winner, reason) {
+  match.wins[winner]++;
+  match.lastWinner = winner;
+  stats.rounds++; stats.timeSum += fightT;
+  state = "ROUNDEND"; roundEndT = 2.6; timeScale = 1;
+  match.endReason = reason || "snap";
+  cgEvent("gameplayStop");
+}
+function finishMatch() {
+  var playerWon = match.wins[0] >= match.targetWins;
+  if (playerWon) { winsRec++; streakRec++; } else { lossRec++; streakRec = 0; }
+  try {
+    localStorage.setItem("kd_w", String(winsRec));
+    localStorage.setItem("kd_l", String(lossRec));
+    localStorage.setItem("kd_s", String(streakRec));
+  } catch (e) {}
+  document.getElementById("endTitle").textContent = playerWon ? "VICTORY" : "DEFEAT";
+  document.getElementById("endSub").textContent = playerWon ?
+    "You snapped the rival's line " + match.wins[0] + "\u2013" + match.wins[1] + "." :
+    "Your line snapped " + match.wins[1] + "\u2013" + match.wins[0] + ". Rule the upwind next time.";
+  document.getElementById("endRec").textContent = "RECORD " + winsRec + " W · " + lossRec + " L";
+  document.getElementById("menuBox").style.display = "none";
+  document.getElementById("endBox").style.display = "block";
+  document.getElementById("overlay").style.display = "flex";
+  if (playerWon) { sfx("win"); cgEvent("happytime"); } else sfx("lose");
+  state = "MATCHEND";
+}
+function showMenu() {
+  document.getElementById("menuBox").style.display = "block";
+  document.getElementById("endBox").style.display = "none";
+  document.getElementById("rec").textContent = "RECORD " + winsRec + " W · " + lossRec + " L";
+  document.getElementById("overlay").style.display = "flex";
+  state = "MENU";
+  // 菜单背后：双 AI 表演赛（不判定割线）
+  match = { wins: [0, 0], round: 1, targetWins: 99, diffA: "easy", diffB: "easy", biasA: false, biasB: false, test: true, lastWinner: null };
+  startRound(1); state = "MENU";
+  hideOverlay();
+  document.getElementById("overlay").style.display = "flex";
+}
+function hideOverlay() { document.getElementById("overlay").style.display = "none"; }
+
+/* ---------- 主更新 ---------- */
+function playerInput() {
+  var lat = 0, reel = 0;
+  if (keys.ArrowRight || keys.d) lat += 1;
+  if (keys.ArrowLeft || keys.a) lat -= 1;
+  if (keys.ArrowUp || keys.w) reel += 1;
+  if (keys.ArrowDown || keys.s) reel -= 1;
+  if (stick.on) { lat = clamp(stick.dx / 64, -1, 1); reel = clamp(-stick.dy / 64, -1, 1); }
+  var inp = { lat: lat, reel: reel, yank: pulse.yank, slack: pulse.slack };
+  pulse.yank = false; pulse.slack = false;
+  return inp;
+}
+var keys = {}, pulse = { yank: false, slack: false };
+var stick = { on: false, id: -1, ox: 0, oy: 0, dx: 0, dy: 0 };
+
+function update(dt, rdt) {
+  matchT += dt;
+  updateWind(dt);
+  flashT = Math.max(0, flashT - rdt);
+  // 云随风向漂移
+  var wv = windVec();
+  for (var i = 0; i < clouds.length; i++) {
+    var c = clouds[i];
+    c.x += wv.x * wind.str * 16 * c.s * dt; c.y += wv.y * wind.str * 16 * c.s * dt + 2 * dt;
+    if (c.x < -220) c.x = CFG.VW + 200; if (c.x > CFG.VW + 220) c.x = -200;
+    if (c.y > CFG.VH * 0.8) c.y = 60; if (c.y < 30) c.y = CFG.VH * 0.75;
+  }
+  // 粒子/碎片/浮字
+  for (var p = particles.length - 1; p >= 0; p--) {
+    var pt = particles[p];
+    pt.life -= dt; pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.vx *= (1 - 2 * dt); pt.vy *= (1 - 2 * dt);
+    if (pt.life <= 0) particles.splice(p, 1);
+  }
+  for (var d = debris.length - 1; d >= 0; d--) {
+    var db = debris[d];
+    db.life -= rdt; db.x += db.vx * rdt; db.y += db.vy * rdt; db.ang += db.va * rdt;
+    db.vx += wv.x * 60 * rdt; db.vy += 30 * rdt;
+    if (db.life <= 0) debris.splice(d, 1);
+  }
+  for (var fl = floats.length - 1; fl >= 0; fl--) {
+    floats[fl].life -= rdt; floats[fl].y -= 34 * rdt;
+    if (floats[fl].life <= 0) floats.splice(fl, 1);
+  }
+  updateWindAudio();
+
+  if (state === "MENU") {
+    // 菜单表演：双 AI 缓飞
+    stepFighter(fighters[0], aiThink(fighters[0], fighters[1], dt), dt);
+    stepFighter(fighters[1], aiThink(fighters[1], fighters[0], dt), dt);
+    return;
+  }
+  if (state === "INTRO") {
+    introT -= rdt;
+    var zi = { lat: 0, reel: 0, yank: false, slack: false };
+    stepFighter(fighters[0], zi, dt);
+    stepFighter(fighters[1], zi, dt);
+    if (introT <= 0) {
+      state = "FIGHT"; fightT = 0; sfx("go");
+      cgEvent("gameplayStart");
+    }
+    return;
+  }
+  if (state === "FIGHT") {
+    fightT += dt;
+    var in0 = fighters[0].__force ? fighters[0].__force :
+      (fighters[0].ctrl === "player" ? playerInput() : aiThink(fighters[0], fighters[1], dt));
+    stepFighter(fighters[0], in0, dt);
+    stepFighter(fighters[1], aiThink(fighters[1], fighters[0], dt), dt);
+    tryCuts();
+    // 风暴压迫：55 秒后空域收缩
+    if (!storm && fightT > CFG.STORM_T) { storm = true; wind.targetStr = Math.max(wind.targetStr, 1.2); }
+    if (storm) arena.R = Math.max(220, arena.R - CFG.STORM_SHRINK * dt);
+    if (fightT > CFG.MAXFIGHT) { // 终审：耐久高者胜
+      var w = fighters[0].integrity > fighters[1].integrity ? 0 :
+              fighters[1].integrity > fighters[0].integrity ? 1 : (rng() < 0.5 ? 0 : 1);
+      endRound(w, "verdict");
+    }
+    return;
+  }
+  if (state === "SLOWMO") {
+    var zs = { lat: 0, reel: 0, yank: false, slack: false };
+    stepFighter(fighters[0], zs, dt);
+    stepFighter(fighters[1], zs, dt);
+    slowT -= rdt;
+    if (slowT <= 0) { timeScale = 1; endRound(snapWinner, "snap"); }
+    return;
+  }
+  if (state === "ROUNDEND") {
+    var zr = { lat: 0, reel: 0, yank: false, slack: false };
+    stepFighter(fighters[0], zr, dt);
+    stepFighter(fighters[1], zr, dt);
+    roundEndT -= rdt;
+    if (roundEndT <= 0) {
+      if (match.wins[0] >= match.targetWins || match.wins[1] >= match.targetWins) {
+        if (match.test) state = "ROUNDEND", roundEndT = 9e9; // 测试对局停在这里
+        else finishMatch();
+      } else startRound(match.round + 1);
+    }
+    return;
+  }
+  if (state === "MATCHEND") {
+    var zm = { lat: 0, reel: 0, yank: false, slack: false };
+    stepFighter(fighters[0], zm, dt);
+    stepFighter(fighters[1], zm, dt);
+  }
+}
+
+/* ---------- 渲染 ---------- */
+var introBeeped = {};
+function render() {
+  var g = ctx;
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // 黄昏天空
+  var sky = g.createLinearGradient(0, 0, 0, CFG.VH);
+  sky.addColorStop(0, "#2b1746"); sky.addColorStop(0.45, "#6e2f63");
+  sky.addColorStop(0.75, "#c4545f"); sky.addColorStop(1, "#f2a45c");
+  g.fillStyle = sky; g.fillRect(0, 0, CFG.VW, CFG.VH);
+  // 星
+  for (var i = 0; i < stars.length; i++) {
+    var st = stars[i];
+    g.globalAlpha = 0.25 + 0.25 * Math.sin(matchT * 1.4 + st.p);
+    g.fillStyle = "#ffe9c9";
+    g.fillRect(st.x, st.y, st.r, st.r);
+  }
+  g.globalAlpha = 1;
+  // 落日光晕
+  var sun = g.createRadialGradient(CFG.VW / 2, CFG.VH * 0.88, 30, CFG.VW / 2, CFG.VH * 0.88, 300);
+  sun.addColorStop(0, "rgba(255,205,130,.5)"); sun.addColorStop(1, "rgba(255,205,130,0)");
+  g.fillStyle = sun; g.fillRect(0, CFG.VH * 0.5, CFG.VW, CFG.VH * 0.5);
+  // 云
+  for (var ci = 0; ci < clouds.length; ci++) {
+    var cl = clouds[ci];
+    g.globalAlpha = cl.a;
+    g.fillStyle = "#ffd9c2";
+    for (var pf = 0; pf < cl.puffs.length; pf++) {
+      var pu = cl.puffs[pf];
+      g.beginPath(); g.ellipse(cl.x + pu.dx * cl.s, cl.y + pu.dy * cl.s, pu.r * cl.s, pu.r * 0.55 * cl.s, 0, 0, 6.283); g.fill();
+    }
+  }
+  g.globalAlpha = 1;
+  // 空域圆界
+  var AC2 = CFG.ARC;
+  g.strokeStyle = storm ? "rgba(255,140,110,.55)" : "rgba(255,220,180,.3)";
+  g.lineWidth = 2;
+  g.setLineDash([14, 10]);
+  g.beginPath(); g.arc(AC2.x, AC2.y, arena.R, 0, 6.283); g.stroke();
+  g.setLineDash([]);
+  g.strokeStyle = storm ? "rgba(255,140,110,.2)" : "rgba(255,220,180,.12)";
+  g.beginPath(); g.arc(AC2.x, AC2.y, arena.R - 8, 0, 6.283); g.stroke();
+  // 锚点（放飞者剪影）
+  for (var fi = 0; fi < 2; fi++) {
+    var an = CFG.ANCHOR[fi];
+    g.fillStyle = "rgba(30,12,40,.85)";
+    g.beginPath(); g.arc(an.x, an.y - 4, 13, Math.PI, 0); g.fill();
+    g.fillRect(an.x - 13, an.y - 6, 26, 8);
+  }
+  if (fighters) {
+    // 上风方光环
+    var n0 = upwindN(fighters[0], fighters[1]);
+    var glowIdx = n0 < 0 ? 0 : 1;
+    if (fighters[glowIdx].alive && (state === "FIGHT" || state === "SLOWMO")) {
+      var fk = fighters[glowIdx];
+      g.strokeStyle = glowIdx === 0 ? "rgba(160,255,250,.5)" : "rgba(255,190,150,.5)";
+      g.lineWidth = 2.5;
+      g.globalAlpha = 0.55 + 0.35 * Math.sin(matchT * 6);
+      g.beginPath(); g.arc(fk.pos.x, fk.pos.y, 44, 0, 6.283); g.stroke();
+      g.globalAlpha = 1;
+    }
+    // 斗线
+    for (var li = 0; li < 2; li++) drawFighterLine(fighters[li]);
+    // 断线碎片
+    for (var di = 0; di < debris.length; di++) {
+      var db = debris[di];
+      g.save(); g.translate(db.x, db.y); g.rotate(db.ang);
+      g.globalAlpha = Math.max(0, db.life / 1.6);
+      g.strokeStyle = db.color; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(-db.len / 2, 0); g.lineTo(db.len / 2, 0); g.stroke();
+      g.restore(); g.globalAlpha = 1;
+    }
+    // 风筝 + 尾穗
+    for (var ki = 0; ki < 2; ki++) {
+      var f = fighters[ki];
+      if (!f.alive && state === "SLOWMO" && slowT < 0.9) continue;
+      g.globalAlpha = f.alive ? 1 : Math.max(0, slowT / 1.2);
+      // 尾穗
+      g.lineWidth = 3;
+      for (var ti = 1; ti < f.tail.length; ti++) {
+        g.strokeStyle = ti % 2 ? (f.idx === 0 ? "#ffd27a" : "#ffb36b") : (f.idx === 0 ? "#8ef4ff" : "#ff6a5e");
+        g.beginPath(); g.moveTo(f.tail[ti - 1].x, f.tail[ti - 1].y); g.lineTo(f.tail[ti].x, f.tail[ti].y); g.stroke();
+      }
+      drawKiteShape(f);
+      g.globalAlpha = 1;
+    }
+  }
+  // 火花
+  for (var pi = 0; pi < particles.length; pi++) {
+    var pt2 = particles[pi];
+    g.globalAlpha = Math.max(0, pt2.life / 0.5);
+    g.fillStyle = pt2.color;
+    g.fillRect(pt2.x - pt2.size / 2, pt2.y - pt2.size / 2, pt2.size, pt2.size);
+  }
+  g.globalAlpha = 1;
+  // 浮字
+  for (var fli = 0; fli < floats.length; fli++) {
+    var flt = floats[fli];
+    g.globalAlpha = Math.min(1, flt.life / 0.4);
+    g.fillStyle = flt.color; g.font = "800 17px sans-serif"; g.textAlign = "center";
+    g.fillText(flt.text, flt.x, flt.y);
+  }
+  g.globalAlpha = 1;
+  drawHUD();
+  drawBanners();
+  drawTouchUI();
+  // 断线白闪
+  if (flashT > 0) {
+    g.fillStyle = "rgba(255,255,255," + (flashT / 0.32 * 0.5) + ")";
+    g.fillRect(0, 0, CFG.VW, CFG.VH);
+  }
+}
+function drawFighterLine(f) {
+  if (!f.alive) return;
+  var col = f.idx === 0 ? "#8ef4ff" : "#ffb36b";
+  ctx.strokeStyle = col;
+  ctx.lineWidth = f.integrity <= 2 ? 2.4 : 1.8;
+  ctx.globalAlpha = f.integrity <= 2 ? 0.55 + 0.4 * Math.abs(Math.sin(matchT * 9)) : 0.9;
+  // 张力弧：拉紧直、松线垂
+  ctx.beginPath();
+  ctx.moveTo(f.anchor.x, f.anchor.y);
+  var i, s, mx, my;
+  for (i = 0; i < f.ln.length; i++) {
+    s = f.ln[i];
+    mx = (s.a.x + s.b.x) / 2; my = (s.a.y + s.b.y) / 2;
+    var dx = s.b.x - s.a.x, dy = s.b.y - s.a.y, dl = hyp(dx, dy) || 1;
+    var nx = -dy / dl, ny = dx / dl;
+    var bow = f.slackT > 0 ? 34 : f.yankT > 0 ? -8 : 7;
+    var wob = Math.sin(matchT * 5 + f.idx * 2 + i) * (f.slackT > 0 ? 22 : 3);
+    ctx.quadraticCurveTo(mx + nx * (bow + wob), my + ny * (bow + wob), s.b.x, s.b.y);
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  // 受创刻痕
+  for (i = 0; i < f.marks.length; i++) {
+    var u = 0.3 + 0.13 * i;
+    var lx2 = lerp(f.anchor.x, f.pos.x, u), ly2 = lerp(f.anchor.y, f.pos.y, u);
+    ctx.strokeStyle = "rgba(255,90,80,.9)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(lx2 - 5, ly2 - 5); ctx.lineTo(lx2 + 5, ly2 + 5); ctx.stroke();
+  }
+}
+function drawKiteShape(f) {
+  var g = ctx;
+  g.save(); g.translate(f.pos.x, f.pos.y);
+  var tilt = clamp(f.vel.x * 0.0006, -0.45, 0.45) + f.theta * 0.35 + (f.alive ? 0 : f.spin);
+  g.rotate(tilt);
+  if (f.idx === 0) { // 我方：菱形风筝
+    var grd = g.createLinearGradient(0, -30, 0, 34);
+    grd.addColorStop(0, "#4de8da"); grd.addColorStop(1, "#0d7f8c");
+    g.fillStyle = grd; g.strokeStyle = "rgba(255,255,255,.75)"; g.lineWidth = 1.5;
+    g.beginPath(); g.moveTo(0, -30); g.lineTo(19, 2); g.lineTo(0, 34); g.lineTo(-19, 2); g.closePath();
+    g.fill(); g.stroke();
+    g.strokeStyle = "#ffd27a"; g.lineWidth = 1.6;
+    g.beginPath(); g.moveTo(0, -30); g.lineTo(0, 34); g.moveTo(-19, 2); g.lineTo(19, 2); g.stroke();
+  } else { // 对方：蝴蝶形风筝
+    var grd2 = g.createLinearGradient(0, -26, 0, 24);
+    grd2.addColorStop(0, "#ff7a5e"); grd2.addColorStop(1, "#a12330");
+    g.fillStyle = grd2; g.strokeStyle = "rgba(255,235,200,.8)"; g.lineWidth = 1.5;
+    g.beginPath(); g.moveTo(0, -6); g.quadraticCurveTo(-26, -30, -30, -2); g.quadraticCurveTo(-24, 10, -2, 6); g.closePath();
+    g.fill(); g.stroke();
+    g.beginPath(); g.moveTo(0, -6); g.quadraticCurveTo(26, -30, 30, -2); g.quadraticCurveTo(24, 10, 2, 6); g.closePath();
+    g.fill(); g.stroke();
+    g.fillStyle = "#5e1620";
+    g.beginPath(); g.ellipse(0, 2, 3.4, 12, 0, 0, 6.283); g.fill();
+  }
+  g.restore();
+}
+function drawHUD() {
+  var g = ctx;
+  if (state === "MENU" && !fighters) return;
+  g.textAlign = "left";
+  // YOU 张力条
+  g.font = "800 13px sans-serif"; g.fillStyle = "#ffe9c9";
+  g.fillText("YOU", 26, 34);
+  for (var i = 0; i < CFG.DUR; i++) {
+    var on = fighters && fighters[0].integrity > i;
+    g.fillStyle = on ? "#4de8da" : "rgba(255,255,255,.12)";
+    g.fillRect(26 + i * 21, 40, 17, 11);
+  }
+  g.font = "700 9px sans-serif"; g.fillStyle = "rgba(255,233,201,.6)";
+  g.fillText("TENSION", 26, 64);
+  // 体力
+  for (var s = 0; s < CFG.STAM; s++) {
+    var on2 = fighters && fighters[0].stamina > s;
+    g.fillStyle = on2 ? "#ffd27a" : "rgba(255,255,255,.12)";
+    g.beginPath();
+    g.moveTo(32 + s * 20, 70); g.lineTo(39 + s * 20, 76); g.lineTo(32 + s * 20, 82); g.lineTo(25 + s * 20, 76);
+    g.closePath(); g.fill();
+  }
+  g.font = "700 9px sans-serif"; g.fillStyle = "rgba(255,233,201,.6)";
+  g.fillText("STAMINA", 26, 96);
+  // FOE 张力条
+  g.textAlign = "right";
+  g.font = "800 13px sans-serif"; g.fillStyle = "#ffe9c9";
+  g.fillText("FOE", CFG.VW - 26, 34);
+  for (var j = 0; j < CFG.DUR; j++) {
+    var on3 = fighters && fighters[1].integrity > j;
+    g.fillStyle = on3 ? "#ff7a5e" : "rgba(255,255,255,.12)";
+    g.fillRect(CFG.VW - 26 - 17 - j * 21, 40, 17, 11);
+  }
+  g.font = "700 9px sans-serif"; g.fillStyle = "rgba(255,233,201,.6)";
+  g.fillText("TENSION", CFG.VW - 26, 64);
+  // 回合与比分
+  g.textAlign = "center";
+  if (match && !match.test) {
+    g.font = "800 14px sans-serif"; g.fillStyle = "#ffd27a";
+    g.fillText("ROUND " + match.round, CFG.VW / 2, 26);
+    for (var pI = 0; pI < 2; pI++) {
+      g.beginPath(); g.arc(CFG.VW / 2 - 22 - pI * 16, 46, 5.5, 0, 6.283);
+      if (match.wins[0] > pI) { g.fillStyle = "#4de8da"; g.fill(); }
+      else { g.strokeStyle = "rgba(255,255,255,.35)"; g.lineWidth = 1.5; g.stroke(); }
+      g.beginPath(); g.arc(CFG.VW / 2 + 22 + pI * 16, 46, 5.5, 0, 6.283);
+      if (match.wins[1] > pI) { g.fillStyle = "#ff7a5e"; g.fill(); }
+      else { g.strokeStyle = "rgba(255,255,255,.35)"; g.lineWidth = 1.5; g.stroke(); }
+    }
+  }
+  // 风向标
+  var vx = CFG.VW / 2, vy = 100;
+  g.fillStyle = "rgba(20,10,34,.55)";
+  g.beginPath(); g.arc(vx, vy, 27, 0, 6.283); g.fill();
+  g.strokeStyle = "rgba(255,220,180,.4)"; g.lineWidth = 1.5; g.stroke();
+  var wv = windVec();
+  g.strokeStyle = "#ffd27a"; g.lineWidth = 3.5;
+  g.beginPath(); g.moveTo(vx - wv.x * 15, vy - wv.y * 15); g.lineTo(vx + wv.x * 15, vy + wv.y * 15); g.stroke();
+  g.beginPath();
+  g.moveTo(vx + wv.x * 20, vy + wv.y * 20);
+  g.lineTo(vx + wv.x * 8 - wv.y * 6, vy + wv.y * 8 + wv.x * 6);
+  g.lineTo(vx + wv.x * 8 + wv.y * 6, vy + wv.y * 8 - wv.x * 6);
+  g.closePath(); g.fillStyle = "#ffd27a"; g.fill();
+  // 阵风倒计时弧
+  g.strokeStyle = "rgba(255,210,122,.5)"; g.lineWidth = 2.5;
+  g.beginPath();
+  g.arc(vx, vy, 21, -1.5708, -1.5708 + 6.283 * clamp(wind.t / 10, 0, 1));
+  g.stroke();
+  g.font = "700 9px sans-serif"; g.fillStyle = "rgba(255,233,201,.7)";
+  g.fillText("WIND ×" + wind.str.toFixed(1), vx, vy + 42);
+  // 风暴提示
+  if (storm && state === "FIGHT") {
+    g.font = "800 13px sans-serif";
+    g.fillStyle = Math.sin(matchT * 8) > 0 ? "#ff9d6b" : "rgba(255,157,107,.4)";
+    g.fillText("STORM — ARENA SHRINKING", CFG.VW / 2, 152);
+  }
+  // 教学提示
+  if (state === "FIGHT" && match && match.round === 1 && fighters && fighters[0].alive && fighters[1].alive) {
+    var nU = upwindN(fighters[0], fighters[1]);
+    if (nU > 0.15) {
+      g.font = "700 13px sans-serif";
+      g.fillStyle = "rgba(255,233,201," + (0.5 + 0.4 * Math.sin(matchT * 4)) + ")";
+      g.fillText("STEAL THE WIND EDGE (chase the glow) — slash with the wind!", CFG.VW / 2, CFG.VH - 40);
+    }
+  }
+  // 桌面操作提示（首局前 8 秒）
+  if (state === "FIGHT" && !touchMode && fightT < 8 && match && match.round === 1) {
+    g.font = "700 12px sans-serif"; g.fillStyle = "rgba(255,233,201,.75)";
+    g.fillText("\u2191\u2193 reel \u00b7 \u2190\u2192 drift \u00b7 Z yank \u00b7 X slack", CFG.VW / 2, CFG.VH - 18);
+  }
+}
+function drawBanners() {
+  var g = ctx;
+  g.textAlign = "center";
+  if (state === "INTRO") {
+    g.font = "900 38px sans-serif"; g.fillStyle = "#ffd27a";
+    g.fillText("ROUND " + match.round, CFG.VW / 2, CFG.VH / 2 - 70);
+    var pc = Math.ceil(introT);
+    g.font = "900 64px sans-serif"; g.fillStyle = "#fff";
+    g.fillText(pc > 0 ? String(pc) : "FLY!", CFG.VW / 2, CFG.VH / 2 + 10);
+    if (arena.R < CFG.R0 - 1) {
+      g.font = "700 14px sans-serif"; g.fillStyle = "#ff9d6b";
+      g.fillText("ARENA -10%", CFG.VW / 2, CFG.VH / 2 + 46);
+    }
+    var pc2 = Math.ceil(introT);
+    if (pc2 !== introBeeped[match.round]) { introBeeped[match.round] = pc2; if (pc2 >= 1 && pc2 <= 3) sfx("tick"); }
+  } else if (state === "SLOWMO") {
+    g.font = "900 52px sans-serif"; g.fillStyle = "#fff";
+    g.globalAlpha = Math.min(1, slowT * 3);
+    g.fillText("SNAP!", CFG.VW / 2, CFG.VH / 2 - 40);
+    g.globalAlpha = 1;
+  } else if (state === "ROUNDEND" && roundEndT < 9e8) {
+    var youWon = match.lastWinner === 0;
+    g.font = "900 40px sans-serif"; g.fillStyle = youWon ? "#4de8da" : "#ff7a5e";
+    g.fillText(youWon ? "LINE CUT!" : "LINE LOST", CFG.VW / 2, CFG.VH / 2 - 30);
+    g.font = "700 17px sans-serif"; g.fillStyle = "#ffe9c9";
+    g.fillText(youWon ? "You take round " + match.round : "The rival takes round " + match.round, CFG.VW / 2, CFG.VH / 2 + 8);
+  }
+}
+// 触控：悬浮摇杆 + 技能钮
+var btns = [
+  { x: CFG.VW - 96, y: CFG.VH - 212, r: 46, label: "YANK", act: "yank" },
+  { x: CFG.VW - 96, y: CFG.VH - 104, r: 46, label: "SLACK", act: "slack" }
+];
+function drawTouchUI() {
+  if (!touchMode || state !== "FIGHT") return;
+  var g = ctx;
+  for (var i = 0; i < btns.length; i++) {
+    var b = btns[i];
+    var ok = fighters && fighters[0].stamina >= 1;
+    g.globalAlpha = ok ? 0.5 : 0.22;
+    g.fillStyle = "#2b1746";
+    g.beginPath(); g.arc(b.x, b.y, b.r, 0, 6.283); g.fill();
+    g.strokeStyle = b.act === "yank" ? "#ffd27a" : "#8ef4ff"; g.lineWidth = 2.5; g.stroke();
+    g.globalAlpha = ok ? 0.95 : 0.4;
+    g.fillStyle = "#ffe9c9"; g.font = "800 13px sans-serif"; g.textAlign = "center";
+    g.fillText(b.label, b.x, b.y + 5);
+    g.globalAlpha = 1;
+  }
+  if (stick.on) {
+    g.globalAlpha = 0.35;
+    g.fillStyle = "#2b1746";
+    g.beginPath(); g.arc(stick.ox, stick.oy, 64, 0, 6.283); g.fill();
+    g.strokeStyle = "rgba(255,233,201,.6)"; g.lineWidth = 2; g.stroke();
+    g.globalAlpha = 0.8;
+    g.fillStyle = "#ffd27a";
+    g.beginPath(); g.arc(stick.ox + stick.dx, stick.oy + stick.dy, 24, 0, 6.283); g.fill();
+    g.globalAlpha = 1;
+  }
+}
+
+/* ---------- 输入 ---------- */
+document.addEventListener("keydown", function (e) {
+  var k = e.key;
+  if (k === "ArrowLeft" || k === "ArrowRight" || k === "ArrowUp" || k === "ArrowDown" || k === " ") e.preventDefault();
+  keys[k] = true;
+  if (k === "a" || k === "A") keys.ArrowLeft = true;
+  if (k === "d" || k === "D") keys.ArrowRight = true;
+  if (k === "w" || k === "W") keys.ArrowUp = true;
+  if (k === "s" || k === "S") keys.ArrowDown = true;
+  initAudio();
+  if (!e.repeat) {
+    if (k === "z" || k === "Z" || k === "j" || k === "J") pulse.yank = true;
+    if (k === "x" || k === "X" || k === "k" || k === "K") pulse.slack = true;
+    if (k === "m" || k === "M") toggleMute();
+    if ((k === "Enter" || k === " ") && state === "MENU") startMatch(selDiff);
+    else if ((k === "Enter" || k === " ") && state === "MATCHEND") startMatch(selDiff);
+  }
+});
+document.addEventListener("keyup", function (e) {
+  var k = e.key;
+  keys[k] = false;
+  if (k === "a" || k === "A") keys.ArrowLeft = false;
+  if (k === "d" || k === "D") keys.ArrowRight = false;
+  if (k === "w" || k === "W") keys.ArrowUp = false;
+  if (k === "s" || k === "S") keys.ArrowDown = false;
+});
+function toVirtual(cx, cy) {
+  var r = canvas.getBoundingClientRect();
+  return { x: (cx - r.left) / r.width * CFG.VW, y: (cy - r.top) / r.height * CFG.VH };
+}
+canvas.addEventListener("touchstart", function (e) {
+  e.preventDefault(); initAudio(); touchMode = true;
+  var ts = e.changedTouches;
+  for (var i = 0; i < ts.length; i++) {
+    var v = toVirtual(ts[i].clientX, ts[i].clientY);
+    var used = false;
+    for (var b = 0; b < btns.length; b++) {
+      if (hyp(v.x - btns[b].x, v.y - btns[b].y) < btns[b].r + 14) {
+        if (btns[b].act === "yank") pulse.yank = true; else pulse.slack = true;
+        used = true; break;
+      }
+    }
+    if (!used && v.x < CFG.VW * 0.6 && !stick.on) {
+      stick.on = true; stick.id = ts[i].identifier; stick.ox = v.x; stick.oy = v.y; stick.dx = 0; stick.dy = 0;
+    }
+  }
+}, { passive: false });
+canvas.addEventListener("touchmove", function (e) {
+  e.preventDefault();
+  var ts = e.changedTouches;
+  for (var i = 0; i < ts.length; i++) {
+    if (stick.on && ts[i].identifier === stick.id) {
+      var v = toVirtual(ts[i].clientX, ts[i].clientY);
+      var dx = v.x - stick.ox, dy = v.y - stick.oy, d = hyp(dx, dy);
+      if (d > 64) { dx = dx / d * 64; dy = dy / d * 64; }
+      stick.dx = dx; stick.dy = dy;
+    }
+  }
+}, { passive: false });
+function endTouch(e) {
+  e.preventDefault();
+  var ts = e.changedTouches;
+  for (var i = 0; i < ts.length; i++) {
+    if (stick.on && ts[i].identifier === stick.id) { stick.on = false; stick.dx = 0; stick.dy = 0; }
+  }
+}
+canvas.addEventListener("touchend", endTouch, { passive: false });
+canvas.addEventListener("touchcancel", endTouch, { passive: false });
+document.addEventListener("gesturestart", function (e) { e.preventDefault(); });
+canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+
+/* ---------- DOM 界面 ---------- */
+var selDiff = "normal";
+var diffBtns = document.querySelectorAll(".diff");
+for (var dbi = 0; dbi < diffBtns.length; dbi++) {
+  (function (btn) {
+    btn.addEventListener("click", function () {
+      for (var i = 0; i < diffBtns.length; i++) diffBtns[i].classList.remove("active");
+      btn.classList.add("active");
+      selDiff = btn.getAttribute("data-d");
+      sfx("click");
+    });
+  })(diffBtns[dbi]);
+}
+function toggleMute() {
+  muted = !muted;
+  try { localStorage.setItem("kd_mute", muted ? "1" : "0"); } catch (e) {}
+  if (master) master.gain.value = muted ? 0 : 1;
+  document.getElementById("mute").textContent = muted ? "SOUND OFF" : "SOUND ON";
+}
+document.getElementById("mute").addEventListener("click", function (e) { e.stopPropagation(); initAudio(); toggleMute(); });
+document.getElementById("mute").textContent = muted ? "SOUND OFF" : "SOUND ON";
+document.getElementById("startBtn").addEventListener("click", function () { initAudio(); sfx("click"); startMatch(selDiff); });
+document.getElementById("rematchBtn").addEventListener("click", function () { sfx("click"); startMatch(selDiff); });
+document.getElementById("menuBtn").addEventListener("click", function () { sfx("click"); showMenu(); });
+if ("ontouchstart" in window) {
+  document.getElementById("ctrlHint").innerHTML = "Left joystick: drift + reel<br>Right buttons: YANK / SLACK";
+}
+
+/* ---------- 主循环与测试钩子 ---------- */
+var last = 0;
+function frame(t) {
+  var rdt = Math.min((t - last) / 1000, 0.05); last = t;
+  if (rdt < 0) rdt = 0;
+  update(rdt * timeScale, rdt);
+  render();
+  requestAnimationFrame(frame);
+}
+window.__kd = {
+  CFG: CFG,
+  segInt: segInt, sweepCut: sweepCut, sweepLines: sweepLines,
+  fig8: fig8, rayCircleFar: rayCircleFar, kiteWorldPos: kiteWorldPos,
+  ptSegDist: ptSegDist,
+  windVec: windVec, upwindN: upwindN, cutThreshold: cutThreshold,
+  cutGate: cutGate, applyCut: applyCut,
+  startTestMatch: startTestMatch, startMatch: startMatch, showMenu: showMenu,
+  step: update, render: render,
+  setTime: function (t) { matchT = t; },
+  st: function () {
+    return {
+      state: state, matchT: matchT, fightT: fightT, round: match ? match.round : 0,
+      wins: match ? match.wins.slice() : [0, 0],
+      matchOver: match ? (match.wins[0] >= match.targetWins || match.wins[1] >= match.targetWins) : false,
+      lastWinner: match ? match.lastWinner : null,
+      arenaR: arena.R, timeScale: timeScale,
+      wind: { az: wind.az, str: wind.str },
+      fighters: fighters ? fighters.map(function (f) {
+        return {
+          pos: { x: f.pos.x, y: f.pos.y }, vel: { x: f.vel.x, y: f.vel.y },
+          L: f.L, theta: f.theta, phase: f.phase, amp: f.amp,
+          integrity: f.integrity, stamina: f.stamina, alive: f.alive,
+          yankT: f.yankT, slackT: f.slackT, drift: { x: f.drift.x, y: f.drift.y },
+          hover: { x: f.hx || 0, y: f.hy || 0 }, ctrl: f.ctrl, aiMode: f.aiMode, aiBias: f.aiBias
+        };
+      }) : []
+    };
+  },
+  stats: function () { return stats; },
+  forceInput: function (idx, inp) {
+    if (fighters && fighters[idx]) fighters[idx].ctrl = idx === 0 ? "player" : fighters[idx].ctrl;
+    if (idx === 0 && fighters) fighters[0].__force = inp;
+  },
+  fighters: function () { return fighters; }
+};
+// 启动：菜单 + 表演赛
+showMenu();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
